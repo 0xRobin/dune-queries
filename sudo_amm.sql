@@ -44,7 +44,7 @@ FROM (
 )
 
 ,transfers AS (
-SELECT t."evt_tx_hash", t."from", t."contract_address", array_agg(t."tokenId"::int ORDER BY t."tokenId" ASC) as "transferIds"
+SELECT t."evt_tx_hash", t."from", t."contract_address", array_agg(t."tokenId"::int ORDER BY t."tokenId" ASC) as "transferIds", count(t."tokenId") as "number_of_items"
 FROM erc721."ERC721_evt_Transfer" t
 WHERE t."evt_tx_hash" in (select DISTINCT "tx_hash" from swaps)
 GROUP BY t."evt_tx_hash", t."contract_address", t."from"
@@ -54,13 +54,12 @@ GROUP BY t."evt_tx_hash", t."contract_address", t."from"
 SELECT
     s."call_block_time" as "block_time",
     t."contract_address" as "nft_contract_address",
-    t."transferIds" as "nft_token_ids_array",
-    cardinality(t."transferIds") as "number_of_items",
+    unnest(t."transferIds") as "nft_token_id",
     s."from" as "buyer",
     p."asset_recipient" as "seller",
     p."pair" as "pair_address",
-    e."amount" as "eth_amount_raw",
-    e."fees" as "eth_fees_raw",
+    (e."amount"::bigint /  t."number_of_items"::bigint) as "eth_amount_raw",
+    (e."fees"::bigint /  t."number_of_items"::bigint) as "eth_fees_raw",
     s."tx_hash"
 FROM
 transfers t
@@ -74,4 +73,6 @@ ORDER BY s."call_block_time"
 )
 
 
-select * FROM swap_details
+select * FROM swap_details order by "block_time" DESC
+
+
